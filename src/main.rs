@@ -13,10 +13,10 @@ use std::time::Duration;
 const WINDOW_WIDTH: u32 = 1200;
 const WINDOW_HEIGHT: u32 = 1200;
 const LANE_WIDTH: u32 = 65;
-const INTERSECTION_SIZE: u32 = 500;
+const INTERSECTION_SIZE: u32 = 400;
 const CAR_SIZE: u32 = 50;
-const SAFETY_DISTANCE: i32 = 100; // Minimum distance between cars
-const MAX_SPEED: i32 = 8; // Maximum speed of the cars
+const SAFETY_DISTANCE: i32 = 70; // Minimum distance between cars
+const MAX_SPEED: i32 = 10; // Maximum speed of the cars
 const MIN_SPEED: i32 = 6; // Minimum speed of the cars
 
 #[derive(Debug, Clone, Copy)]
@@ -33,7 +33,7 @@ struct Car {
 impl Car {
     fn new(direction: char, lane: u8) -> Car {
         let (x, y, vx, vy) = match direction {
-            'N' => (600 + lane as i32 * LANE_WIDTH as i32, 0, 0, 1),
+            'N' => (562 + lane as i32 * LANE_WIDTH as i32, 0, 0, 1),
             'S' => (600 - lane as i32 * LANE_WIDTH as i32, 1200, 0, -1),
             'E' => (0, 600 - lane as i32 * LANE_WIDTH as i32, 1, 0),
             'W' => (1200, 560 + lane as i32 * LANE_WIDTH as i32, -1, 0),
@@ -63,10 +63,13 @@ impl Car {
         self.y += self.vy;
     }
 
+
     fn turn_left(&mut self) {
+        // Déterminer le comportement de virage à gauche en fonction de la direction actuelle
         match self.direction {
             'N' => {
-                if self.x > 600 - INTERSECTION_SIZE as i32 / 2 {
+                // Si la voiture dépasse le centre de l'intersection, tourner vers l'ouest
+                if self.x > 600 {
                     self.vx = -1;
                     self.vy = 0;
                 } else {
@@ -75,7 +78,8 @@ impl Car {
                 }
             }
             'S' => {
-                if self.x < 600 + INTERSECTION_SIZE as i32 / 2 {
+                // Si la voiture dépasse le centre de l'intersection, tourner vers l'est
+                if self.x < 600 {
                     self.vx = 1;
                     self.vy = 0;
                 } else {
@@ -84,20 +88,22 @@ impl Car {
                 }
             }
             'E' => {
-                if self.y < 600 + INTERSECTION_SIZE as i32 / 2 {
-                    self.vx = 0;
-                    self.vy = 1;
-                } else {
-                    self.vx = -1;
-                    self.vy = 0;
-                }
-            }
-            'W' => {
-                if self.y > 600 - INTERSECTION_SIZE as i32 / 2 {
+                // Si la voiture dépasse le centre de l'intersection, tourner vers le nord
+                if self.y < 600 {
                     self.vx = 0;
                     self.vy = -1;
                 } else {
                     self.vx = 1;
+                    self.vy = 0;
+                }
+            }
+            'W' => {
+                // Si la voiture dépasse le centre de l'intersection, tourner vers le sud
+                if self.y > 600 {
+                    self.vx = 0;
+                    self.vy = 1;
+                } else {
+                    self.vx = -1;
                     self.vy = 0;
                 }
             }
@@ -176,14 +182,34 @@ impl Car {
         }
     }
 
-    fn draw(&self, canvas: &mut Canvas<Window>, left_texture: &Texture, right_texture: &Texture) -> Result<(), String> {
-        let texture = match self.direction {
-            'N' | 'S' => left_texture,
-            'E' | 'W' => right_texture,
-            _ => return Ok(()), // Fallback to no-op if direction is invalid
+    fn draw(&self, canvas: &mut Canvas<Window>, left_texture: &Texture, right_texture: &Texture, straight_texture: &Texture) -> Result<(), String> {
+        let (texture, angle) = match self.lane {
+            1 => (left_texture, match self.direction {
+                'N' => 90.0,
+                'S' => 270.0,
+                'E' => 0.0,
+                'W' => 180.0,
+                _ => 0.0,
+            }),
+            2 => (straight_texture, match self.direction {
+                'N' => 90.0,
+                'S' => 270.0,
+                'E' => 0.0,
+                'W' => 180.0,
+                _ => 0.0,
+            }),
+            3 => (right_texture, match self.direction {
+                'N' => 90.0,
+                'S' => 270.0,
+                'E' => 0.0,
+                'W' => 180.0,
+                _ => 0.0,
+            }),
+            _ => return Ok(()), // Fallback to no-op if lane is invalid
         };
-        draw_car(canvas, texture, self.x, self.y)
+        draw_car(canvas, texture, self.x, self.y, angle)
     }
+    
 }
 
 fn generate_random_lane() -> u8 {
@@ -214,8 +240,9 @@ fn add_car(cars: &mut Vec<Car>, direction: char) {
     }
 }
 
+
 fn draw_intersection(canvas: &mut Canvas<Window>) {
-    canvas.set_draw_color(Color::RGB(200, 200, 200));
+    canvas.set_draw_color(Color::RGBA(200, 200, 200, 100)); // Transparent gray color with alpha 128
     canvas.fill_rect(Rect::new(
         (WINDOW_WIDTH / 2 - INTERSECTION_SIZE / 2) as i32,
         (WINDOW_HEIGHT / 2 - INTERSECTION_SIZE / 2) as i32,
@@ -224,8 +251,10 @@ fn draw_intersection(canvas: &mut Canvas<Window>) {
     )).unwrap();
 }
 
-fn draw_car(canvas: &mut Canvas<Window>, texture: &Texture, x: i32, y: i32) -> Result<(), String> {
-    canvas.copy(texture, None, Some(Rect::new(x, y, CAR_SIZE, CAR_SIZE)))?;
+
+fn draw_car(canvas: &mut Canvas<Window>, texture: &Texture, x: i32, y: i32, angle: f64) -> Result<(), String> {
+    let center = sdl2::rect::Point::new(CAR_SIZE as i32 / 2, CAR_SIZE as i32 / 2);
+    canvas.copy_ex(texture, None, Some(Rect::new(x, y, CAR_SIZE, CAR_SIZE)), angle, Some(center), false, false)?;
     Ok(())
 }
 
@@ -243,6 +272,7 @@ fn main() -> Result<(), String> {
     let background_texture = texture_creator.load_texture("assets/board.jpg")?;
     let left_car_texture = texture_creator.load_texture("assets/car_left.png")?;
     let right_car_texture = texture_creator.load_texture("assets/car_right.png")?;
+    let straight_car_texture = texture_creator.load_texture("assets/car_straight.png")?;
     
     let mut event_pump = sdl_context.event_pump()?;
     let mut cars: Vec<Car> = Vec::new();
@@ -281,26 +311,26 @@ fn main() -> Result<(), String> {
                 _ => {}
             }
         }
-    
+
         let cars_snapshot = cars.clone();
         for car in cars.iter_mut() {
             car.update(&cars_snapshot);
         }
-    
+
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         canvas.clear();
-    
+
         // Draw background
         canvas.copy(&background_texture, None, None)?;
-    
+
         draw_intersection(&mut canvas);
         for car in &cars {
-            car.draw(&mut canvas, &left_car_texture, &right_car_texture)?;
+            car.draw(&mut canvas, &left_car_texture, &right_car_texture, &straight_car_texture)?;
         }
         canvas.present();
-    
+
         std::thread::sleep(Duration::from_millis(16));
     }
-    
+
     Ok(())
 }
