@@ -1,9 +1,9 @@
 use sdl2::image::LoadTexture;
 use sdl2::pixels::Color;
-use sdl2::rect::{Point, Rect};
+use sdl2::rect::Rect;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::render::{Canvas, Texture, TextureCreator};
+use sdl2::render::{Canvas, Texture};
 use sdl2::video::Window;
 //use sdl2::Sdl;
 use rand::Rng;
@@ -13,11 +13,11 @@ use std::time::Duration;
 const WINDOW_WIDTH: u32 = 1200;
 const WINDOW_HEIGHT: u32 = 1200;
 const LANE_WIDTH: u32 = 65;
-const INTERSECTION_SIZE: u32 = 400;
+const INTERSECTION_SIZE: u32 = 350;
 const CAR_SIZE: u32 = 50;
 const SAFETY_DISTANCE: i32 = 70; // Minimum distance between cars
-const MAX_SPEED: i32 = 10; // Maximum speed of the cars
-const MIN_SPEED: i32 = 6; // Minimum speed of the cars
+const MAX_SPEED: i32 = 30; // Maximum speed of the cars
+const MIN_SPEED: i32 = 20; // Minimum speed of the cars
 
 #[derive(Debug, Clone, Copy)]
 struct Car {
@@ -28,35 +28,43 @@ struct Car {
     direction: char,
     lane: u8,
     at_intersection: bool,
+    has_turned: bool,
 }
 
 impl Car {
     fn new(direction: char, lane: u8) -> Car {
         let (x, y, vx, vy) = match direction {
             'N' => (562 + lane as i32 * LANE_WIDTH as i32, 0, 0, 1),
-            'S' => (600 - lane as i32 * LANE_WIDTH as i32, 1200, 0, -1),
+            'S' => (608 - lane as i32 * LANE_WIDTH as i32, 1200, 0, -1),
             'E' => (0, 600 - lane as i32 * LANE_WIDTH as i32, 1, 0),
             'W' => (1200, 560 + lane as i32 * LANE_WIDTH as i32, -1, 0),
             _ => (0, 0, 0, 0),
         };
-        Car { x, y, vx, vy, direction, lane, at_intersection: false }
+        Car { x, y, vx, vy, direction, lane, at_intersection: false, has_turned: false }
     }
     
     fn update(&mut self, cars: &Vec<Car>) {
         // Check if the car is at the intersection
-        if !self.at_intersection && self.x >= 600 - INTERSECTION_SIZE as i32 / 2 && self.x <= 600 + INTERSECTION_SIZE as i32 / 2 && self.y >= 600 - INTERSECTION_SIZE as i32 / 2 && self.y <= 600 + INTERSECTION_SIZE as i32 / 2 {
+        if !self.at_intersection && self.x >= ((580 - INTERSECTION_SIZE as i32 / 2)) && self.x <= 600 + INTERSECTION_SIZE as i32 / 2 && self.y >= ((580 - INTERSECTION_SIZE as i32 / 2)) && self.y <= 600 + INTERSECTION_SIZE as i32 / 2 {
             self.at_intersection = true;
         }
 
         if self.at_intersection {
             match self.lane {
-                1 => self.turn_left(),
+                1 => self.turn_right(),
                 2 => self.go_straight(),
-                3 => self.turn_right(),
+                3 => self.turn_left(),
                 _ => (),
             }
         } else {
             self.adjust_speed(cars);
+        }
+
+        // Check if the car has left the intersection
+        if self.at_intersection && (self.x < 600 - INTERSECTION_SIZE as i32 / 2 || self.x > 600 + INTERSECTION_SIZE as i32 / 2 || self.y < 600 - INTERSECTION_SIZE as i32 / 2 || self.y > 600 + INTERSECTION_SIZE as i32 / 2) {
+            self.at_intersection = false;
+            self.vx = self.vx.signum() * MAX_SPEED;
+            self.vy = self.vy.signum() * MAX_SPEED;
         }
 
         self.x += self.vx;
@@ -64,52 +72,103 @@ impl Car {
     }
 
 
-    fn turn_left(&mut self) {
-        // Déterminer le comportement de virage à gauche en fonction de la direction actuelle
+    // fn turn_left(&mut self) {
+    //     match self.direction {
+    //         'N' => {
+    //             if self.x > 600 {
+    //                 self.vx = MAX_SPEED;
+    //                 self.vy = 0;
+    //                 self.direction = 'E';
+    //                 self.at_intersection = false;
+    //             } else {
+    //                 self.vx = 0;
+    //                 self.vy = MAX_SPEED;
+    //             }
+    //         }
+    //         'S' => {
+    //             if self.x < 600 {
+    //                 self.vx = -MAX_SPEED;
+    //                 self.vy = 0;
+    //                 self.direction = 'W';
+    //             } else {
+    //                 self.vx = 0;
+    //                 self.vy = -MAX_SPEED;
+    //             }
+    //         }
+    //         'E' => {
+    //             if self.y < 600 {
+    //                 self.vx = 0;
+    //                 self.vy = -MAX_SPEED;
+    //                 self.direction = 'S'; 
+    //             } else {
+    //                 self.vx = MAX_SPEED;
+    //                 self.vy = 0;
+    //             }
+    //         }
+    //         'W' => {
+    //             if self.y > 600 {
+    //                 self.vx = 0;
+    //                 self.vy = MAX_SPEED;
+    //                 self.direction = 'N';
+    //                 self.vx = -MAX_SPEED;
+    //                 self.vy = 0;
+    //             }
+    //         }
+    //         _ => (),
+    //     }
+    // } 
+
+        fn turn_left(&mut self) {
+        if self.has_turned {
+            return; // Sortir si la voiture a déjà tourné
+        }
+
         match self.direction {
             'N' => {
-                // Si la voiture dépasse le centre de l'intersection, tourner vers l'ouest
                 if self.x > 600 {
-                    self.vx = -1;
+                    self.vx = MAX_SPEED;
                     self.vy = 0;
+                    self.direction = 'E';
+                    self.has_turned = true; // Marquer la voiture comme ayant tourné
                 } else {
                     self.vx = 0;
-                    self.vy = -1;
+                    self.vy = MAX_SPEED;
                 }
             }
             'S' => {
-                // Si la voiture dépasse le centre de l'intersection, tourner vers l'est
                 if self.x < 600 {
-                    self.vx = 1;
+                    self.vx = -MAX_SPEED;
                     self.vy = 0;
+                    self.direction = 'W';
+                    self.has_turned = true; // Marquer la voiture comme ayant tourné
                 } else {
                     self.vx = 0;
-                    self.vy = 1;
+                    self.vy = -MAX_SPEED;
                 }
             }
             'E' => {
-                // Si la voiture dépasse le centre de l'intersection, tourner vers le nord
                 if self.y < 600 {
                     self.vx = 0;
-                    self.vy = -1;
+                    self.vy = -MAX_SPEED;
+                    self.direction = 'S'; 
+                    self.has_turned = true; // Marquer la voiture comme ayant tourné
                 } else {
-                    self.vx = 1;
+                    self.vx = MAX_SPEED;
                     self.vy = 0;
                 }
             }
             'W' => {
-                // Si la voiture dépasse le centre de l'intersection, tourner vers le sud
                 if self.y > 600 {
                     self.vx = 0;
-                    self.vy = 1;
-                } else {
-                    self.vx = -1;
-                    self.vy = 0;
+                    self.vy = MAX_SPEED;
+                    self.direction = 'N';
+                    self.has_turned = true; // Marquer la voiture comme ayant tourné
                 }
             }
             _ => (),
         }
     }
+   
 
     fn turn_right(&mut self) {
         match self.direction {
@@ -154,7 +213,13 @@ impl Car {
     }
 
     fn go_straight(&mut self) {
-        
+        match self.direction {
+            'N' => self.vy = MAX_SPEED,
+            'S' => self.vy = -MAX_SPEED,
+            'E' => self.vx = MAX_SPEED,
+            'W' => self.vx = -MAX_SPEED,
+            _ => (),
+        }
     }
 
     fn adjust_speed(&mut self, cars: &Vec<Car>) {
@@ -210,6 +275,7 @@ impl Car {
         draw_car(canvas, texture, self.x, self.y, angle)
     }
     
+    
 }
 
 fn generate_random_lane() -> u8 {
@@ -242,10 +308,10 @@ fn add_car(cars: &mut Vec<Car>, direction: char) {
 
 
 fn draw_intersection(canvas: &mut Canvas<Window>) {
-    canvas.set_draw_color(Color::RGBA(200, 200, 200, 100)); // Transparent gray color with alpha 128
+     canvas.set_draw_color(Color::RGBA(200, 200, 200, 100));
     canvas.fill_rect(Rect::new(
-        (WINDOW_WIDTH / 2 - INTERSECTION_SIZE / 2) as i32,
-        (WINDOW_HEIGHT / 2 - INTERSECTION_SIZE / 2) as i32,
+        ((WINDOW_WIDTH)/ 2 - INTERSECTION_SIZE / 2) as i32,
+        (WINDOW_HEIGHT / 2 - ((INTERSECTION_SIZE) / 2)) as i32,
         INTERSECTION_SIZE,
         INTERSECTION_SIZE,
     )).unwrap();
@@ -288,11 +354,11 @@ fn main() -> Result<(), String> {
                 Event::KeyDown {
                     keycode: Some(Keycode::Up),
                     ..
-                } => add_car(&mut cars, 'N'),
+                } => add_car(&mut cars, 'S'),
                 Event::KeyDown {
                     keycode: Some(Keycode::Down),
                     ..
-                } => add_car(&mut cars, 'S'),
+                } => add_car(&mut cars, 'N'),
                 Event::KeyDown {
                     keycode: Some(Keycode::Left),
                     ..
