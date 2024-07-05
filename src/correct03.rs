@@ -142,46 +142,65 @@ impl Car {
     }
 
     fn turn_right(&mut self) {
+        if self.has_turned {
+            return;
+        }
+    
+        let turn_radius: i32 = 50;
+        let turn_center_x: i32 = 600;
+        let turn_center_y: i32 = 600;
+    
         match self.direction {
             'N' => {
-                if self.x < 600 + INTERSECTION_SIZE as i32 / 2 {
-                    self.vx = 1;
+                if self.y >= turn_center_y - turn_radius+73 {
+                    self.vx = -MAX_SPEED;  
                     self.vy = 0;
+                    self.direction = 'W';
+                    self.has_turned = true;
                 } else {
                     self.vx = 0;
-                    self.vy = 1;
+                    self.vy = MAX_SPEED; 
                 }
             }
             'S' => {
-                if self.x > 600 - INTERSECTION_SIZE as i32 / 2 {
-                    self.vx = -1;
+                if self.y <= turn_center_y + turn_radius-73 {
+                    self.vx = MAX_SPEED;
                     self.vy = 0;
+                    self.direction = 'E';
+                    self.has_turned = true;
                 } else {
                     self.vx = 0;
-                    self.vy = -1;
+                    self.vy = -MAX_SPEED;
                 }
             }
             'E' => {
-                if self.y > 600 - INTERSECTION_SIZE as i32 / 2 {
+                if self.x >= turn_center_x - turn_radius + 73 {
                     self.vx = 0;
-                    self.vy = -1;
+                    self.vy = MAX_SPEED;
+                    self.direction = 'N';
+                    self.has_turned = true;
                 } else {
-                    self.vx = 1;
+                    self.vx = MAX_SPEED;
                     self.vy = 0;
                 }
             }
             'W' => {
-                if self.y < 600 + INTERSECTION_SIZE as i32 / 2 {
+                if self.x <= (turn_center_x) + turn_radius-73 {
                     self.vx = 0;
-                    self.vy = 1;
+                    self.vy = -MAX_SPEED;
+                    self.direction = 'S';
+                    self.has_turned = true;
                 } else {
-                    self.vx = -1;
+                    self.vx = -MAX_SPEED;
                     self.vy = 0;
                 }
             }
             _ => (),
         }
     }
+    
+    
+
 
     fn go_straight(&mut self) {
         match self.direction {

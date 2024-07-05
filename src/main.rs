@@ -13,8 +13,8 @@ const WINDOW_HEIGHT: u32 = 1200;
 const LANE_WIDTH: u32 = 65;
 const INTERSECTION_SIZE: u32 = 350;
 const CAR_SIZE: u32 = 50;
-const SAFETY_DISTANCE: i32 = 80;
-const MAX_SPEED: i32 = 40;
+const SAFETY_DISTANCE: i32 = 100;
+const MAX_SPEED: i32 = 30; 
 const MIN_SPEED: i32 = 20;
 
 #[derive(Debug, Clone, Copy)]
@@ -27,7 +27,6 @@ struct Car {
     lane: u8,
     at_intersection: bool,
     has_turned: bool,
-    entry_time: std::time::Instant, // Keep track of the time when the car enters the intersection
 }
 
 impl Car {
@@ -48,7 +47,6 @@ impl Car {
             lane,
             at_intersection: false,
             has_turned: false,
-            entry_time: std::time::Instant::now(), // Initialize the entry time
         }
     }
 
@@ -61,7 +59,6 @@ impl Car {
             && self.y <= 580 + INTERSECTION_SIZE as i32 / 2
         {
             self.at_intersection = true;
-            self.entry_time = std::time::Instant::now(); // Record the entry time
         }
 
         if self.at_intersection {
@@ -89,23 +86,6 @@ impl Car {
 
         self.x += self.vx;
         self.y += self.vy;
-    }
-
-    fn check_collision(&self, cars: &Vec<Car>) -> bool {
-        for car in cars.iter() {
-            if car as *const Car != self as *const Car {
-                for i in 1..=3 {
-                    let future_x = self.x + i * self.vx;
-                    let future_y = self.y + i * self.vy;
-                    let dx = (future_x - car.x).abs();
-                    let dy = (future_y - car.y).abs();
-                    if dx < SAFETY_DISTANCE && dy < SAFETY_DISTANCE {
-                        return true;
-                    }
-                }
-            }
-        }
-        false
     }
 
     fn turn_left(&mut self) {
@@ -193,7 +173,7 @@ impl Car {
                 }
             }
             'E' => {
-                if self.x +72>= turn_center_x - turn_radius {
+                if self.x >= turn_center_x - turn_radius + 72 {
                     self.vx = 0;
                     self.vy = MAX_SPEED;
                     self.direction = 'N';
@@ -204,7 +184,7 @@ impl Car {
                 }
             }
             'W' => {
-                if self.x+72 <= turn_center_x + turn_radius {
+                if self.x <= (turn_center_x) + turn_radius-72 {
                     self.vx = 0;
                     self.vy = -MAX_SPEED;
                     self.direction = 'S';
@@ -218,6 +198,9 @@ impl Car {
         }
     }
     
+    
+
+
     fn go_straight(&mut self) {
         match self.direction {
             'N' => self.vy = MAX_SPEED,
@@ -291,7 +274,7 @@ impl Car {
                     _ => 0.0,
                 },
             ),
-            _ => return Ok(()), // Fallback to no-op if lane is invalid
+            _ => return Ok(()), 
         };
         draw_car(canvas, texture, self.x, self.y, angle)
     }
@@ -415,13 +398,6 @@ fn main() -> Result<(), String> {
 
         let cars_snapshot = cars.clone();
         for car in cars.iter_mut() {
-            if car.check_collision(&cars_snapshot) {
-                car.vx = car.vx.signum() * MIN_SPEED;
-                car.vy = car.vy.signum() * MIN_SPEED;
-            } else {
-                car.vx = car.vx.signum() * MAX_SPEED;
-                car.vy = car.vy.signum() * MAX_SPEED;
-            }
             car.update(&cars_snapshot);
         }
 
@@ -442,7 +418,7 @@ fn main() -> Result<(), String> {
         }
         canvas.present();
 
-        std::thread::sleep(Duration::from_millis(4));
+        std::thread::sleep(Duration::from_millis(16));
     }
 
     Ok(())
