@@ -5,18 +5,21 @@ use sdl2::pixels::Color;
 use sdl2::rect::Rect;
 use sdl2::render::{Canvas, Texture};
 use sdl2::video::Window;
-//use sdl2::Sdl;
 use rand::Rng;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
 
 const WINDOW_WIDTH: u32 = 1200;
 const WINDOW_HEIGHT: u32 = 1200;
 const LANE_WIDTH: u32 = 65;
-const INTERSECTION_SIZE: u32 = 350;
+const INTERSECTION_SIZE: u32 = 370;
 const CAR_SIZE: u32 = 50;
-const SAFETY_DISTANCE: i32 = 70; // Minimum distance between cars
-const MAX_SPEED: i32 = 30; // Maximum speed of the cars
-const MIN_SPEED: i32 = 20; // Minimum speed of the cars
+const SAFETY_DISTANCE: i32 = 100;
+const MAX_SPEED: i32 = 50;
+const MIN_SPEED: i32 = 30;
+const THROTTLE_DURATION: Duration = Duration::from_millis(800); 
+const MAX_CARS_IN_INTERSECTION: usize = 10;
+
 
 #[derive(Debug, Clone, Copy)]
 struct Car {
@@ -28,14 +31,15 @@ struct Car {
     lane: u8,
     at_intersection: bool,
     has_turned: bool,
+    entry_time: Instant,
 }
 
 impl Car {
     fn new(direction: char, lane: u8) -> Car {
         let (x, y, vx, vy) = match direction {
             'N' => (562 + lane as i32 * LANE_WIDTH as i32, 0, 0, 1),
-            'S' => (608 - lane as i32 * LANE_WIDTH as i32, 1200, 0, -1),
-            'E' => (0, 600 - lane as i32 * LANE_WIDTH as i32, 1, 0),
+            'S' => (615 - lane as i32 * LANE_WIDTH as i32, 1200, 0, -1),
+            'E' => (0, 610 - lane as i32 * LANE_WIDTH as i32, 1, 0),
             'W' => (1200, 560 + lane as i32 * LANE_WIDTH as i32, -1, 0),
             _ => (0, 0, 0, 0),
         };
@@ -48,32 +52,45 @@ impl Car {
             lane,
             at_intersection: false,
             has_turned: false,
+            entry_time: Instant::now(),
         }
     }
+    
 
     fn update(&mut self, cars: &Vec<Car>) {
+        // Vérifier les collisions avant de mettre à jour la position de la voiture
+        if self.should_stop(cars) {
+            self.vx = 0;
+            self.vy = 0;
+        } else {
+            if self.at_intersection {
+                match self.lane {
+                    1 => self.turn_right(),
+                    2 => self.go_straight(),
+                    3 => self.turn_left(),
+                    _ => (),
+                }
+            } else {
+                self.adjust_speed(cars);
+            }
+
+            // Mettre à jour la position de la voiture
+            self.x += self.vx;
+            self.y += self.vy;
+        }
+
         // Check if the car is at the intersection
         if !self.at_intersection
-            && self.x >= (580 - INTERSECTION_SIZE as i32 / 2)
-            && self.x <= 600 + INTERSECTION_SIZE as i32 / 2
-            && self.y >= (580 - INTERSECTION_SIZE as i32 / 2)
-            && self.y <= 580 + INTERSECTION_SIZE as i32 / 2
+            && self.x >= (590 - INTERSECTION_SIZE as i32 / 2)
+            && self.x <= 590 + INTERSECTION_SIZE as i32 / 2
+            && self.y >= (530 - INTERSECTION_SIZE as i32 / 2)
+            && self.y <= 590 + INTERSECTION_SIZE as i32 / 2
         {
             self.at_intersection = true;
+            //println!("Intersection ???: x {} y {}", self.x, self.y);
+            self.entry_time = Instant::now();
         }
 
-        if self.at_intersection {
-            match self.lane {
-                1 => self.turn_right(),
-                2 => self.go_straight(),
-                3 => self.turn_left(),
-                _ => (),
-            }
-        } else {
-            self.adjust_speed(cars);
-        }
-
-        // Check if the car has left the intersection
         if self.at_intersection
             && (self.x < 600 - INTERSECTION_SIZE as i32 / 2
                 || self.x > 600 + INTERSECTION_SIZE as i32 / 2
@@ -84,12 +101,73 @@ impl Car {
             self.vx = self.vx.signum() * MAX_SPEED;
             self.vy = self.vy.signum() * MAX_SPEED;
         }
-
-        self.x += self.vx;
-        self.y += self.vy;
     }
 
+
+    fn will_collide(&self, other: &Car, steps: i32) -> bool {
+        for step in 1..=steps {
+            let next_x_self = self.x + step * self.vx;
+            let next_y_self = self.y + step * self.vy;
+            let next_x_other = other.x + step * other.vx;
+            let next_y_other = other.y + step * other.vy;
+
+            let dx = (next_x_self - next_x_other).abs();
+            let dy = (next_y_self - next_y_other).abs();
+
+            if dx < SAFETY_DISTANCE && dy < SAFETY_DISTANCE {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn adjust_speed(&mut self, cars: &Vec<Car>) {
+        let mut should_slow_down = false;
+
+        for car in cars.iter() {
+            if car as *const Car != self as *const Car {
+                if self.will_collide(car, 1) {
+                    if self.entry_time > car.entry_time {
+                        should_slow_down = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if should_slow_down {
+            if self.vx != 0 {
+                self.vx = self.vx.signum() * MIN_SPEED;
+            }
+            if self.vy != 0 {
+                self.vy = self.vy.signum() * MIN_SPEED;
+            }
+        } else {
+            if self.vx != 0 {
+                self.vx = self.vx.signum() * MAX_SPEED;
+            }
+            if self.vy != 0 {
+                self.vy = self.vy.signum() * MAX_SPEED;
+            }
+        }
+    }
+
+    fn should_stop(&self, cars: &Vec<Car>) -> bool {
+        for car in cars.iter() {
+            if car as *const Car != self as *const Car && car.at_intersection {
+                if self.will_collide(car, 1) {
+                    if self.entry_time > car.entry_time {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+
     fn turn_left(&mut self) {
+        //println!("test {}", self.x);
         if self.has_turned {
             return;
         }
@@ -118,7 +196,8 @@ impl Car {
                 }
             }
             'E' => {
-                if self.y < 600 {
+                if self.y < 455 {
+                    //println!("testE {}", self.y);
                     self.vx = 0;
                     self.vy = -MAX_SPEED;
                     self.direction = 'S';
@@ -129,12 +208,17 @@ impl Car {
                 }
             }
             'W' => {
-                if self.y > 600 {
+                //println!("testW {}", self.y);
+                if self.y > 200 {
                     self.vx = 0;
                     self.vy = MAX_SPEED;
                     self.direction = 'N';
                     self.has_turned = true;
-                    self.y = 800;
+                    // self.y = 800;
+                }
+                else {
+                    self.vx = MAX_SPEED;
+                    self.vy = MAX_SPEED;
                 }
             }
             _ => (),
@@ -145,25 +229,25 @@ impl Car {
         if self.has_turned {
             return;
         }
-    
+
         let turn_radius: i32 = 50;
         let turn_center_x: i32 = 600;
         let turn_center_y: i32 = 600;
-    
+
         match self.direction {
             'N' => {
-                if self.y >= turn_center_y - turn_radius+73 {
-                    self.vx = -MAX_SPEED;  
+                if self.y >= turn_center_y - turn_radius + 72 {
+                    self.vx = -MAX_SPEED;
                     self.vy = 0;
                     self.direction = 'W';
                     self.has_turned = true;
                 } else {
                     self.vx = 0;
-                    self.vy = MAX_SPEED; 
+                    self.vy = MAX_SPEED;
                 }
             }
             'S' => {
-                if self.y <= turn_center_y + turn_radius-73 {
+                if self.y <= turn_center_y + turn_radius - 72 {
                     self.vx = MAX_SPEED;
                     self.vy = 0;
                     self.direction = 'E';
@@ -174,7 +258,7 @@ impl Car {
                 }
             }
             'E' => {
-                if self.x >= turn_center_x - turn_radius + 73 {
+                if self.x >= turn_center_x - turn_radius + 72 {
                     self.vx = 0;
                     self.vy = MAX_SPEED;
                     self.direction = 'N';
@@ -185,7 +269,7 @@ impl Car {
                 }
             }
             'W' => {
-                if self.x <= (turn_center_x) + turn_radius-73 {
+                if self.x <= (turn_center_x) + turn_radius - 72 {
                     self.vx = 0;
                     self.vy = -MAX_SPEED;
                     self.direction = 'S';
@@ -198,9 +282,6 @@ impl Car {
             _ => (),
         }
     }
-    
-    
-
 
     fn go_straight(&mut self) {
         match self.direction {
@@ -209,31 +290,6 @@ impl Car {
             'E' => self.vx = MAX_SPEED,
             'W' => self.vx = -MAX_SPEED,
             _ => (),
-        }
-    }
-
-    fn adjust_speed(&mut self, cars: &Vec<Car>) {
-        for car in cars.iter() {
-            if car as *const Car != self as *const Car {
-                let dx = (self.x - car.x).abs();
-                let dy = (self.y - car.y).abs();
-                if dx < SAFETY_DISTANCE && dy < SAFETY_DISTANCE {
-                    if self.vx != 0 {
-                        self.vx = self.vx.signum() * MIN_SPEED;
-                    }
-                    if self.vy != 0 {
-                        self.vy = self.vy.signum() * MIN_SPEED;
-                    }
-                    return;
-                }
-            }
-        }
-
-        if self.vx != 0 {
-            self.vx = self.vx.signum() * MAX_SPEED;
-        }
-        if self.vy != 0 {
-            self.vy = self.vy.signum() * MAX_SPEED;
         }
     }
 
@@ -275,7 +331,7 @@ impl Car {
                     _ => 0.0,
                 },
             ),
-            _ => return Ok(()), // Fallback to no-op if lane is invalid
+            _ => return Ok(()),
         };
         draw_car(canvas, texture, self.x, self.y, angle)
     }
@@ -295,11 +351,10 @@ fn add_car(cars: &mut Vec<Car>, direction: char) {
     let lane = generate_random_lane();
     let new_car = Car::new(direction, lane);
 
-    // Check for safety distance
     let mut safe_to_add = true;
     for car in cars.iter() {
-        if ((car.x - new_car.x).abs() < SAFETY_DISTANCE)
-            && ((car.y - new_car.y).abs() < SAFETY_DISTANCE)
+        if ((car.x - new_car.x).abs() <= SAFETY_DISTANCE)
+            && ((car.y - new_car.y).abs() <= SAFETY_DISTANCE)
         {
             safe_to_add = false;
             break;
@@ -310,6 +365,7 @@ fn add_car(cars: &mut Vec<Car>, direction: char) {
         cars.push(new_car);
     }
 }
+
 
 fn draw_intersection(canvas: &mut Canvas<Window>) {
     canvas.set_draw_color(Color::RGBA(200, 200, 200, 100));
@@ -362,6 +418,8 @@ fn main() -> Result<(), String> {
     let mut event_pump = sdl_context.event_pump()?;
     let mut cars: Vec<Car> = Vec::new();
 
+    let mut last_add_time = Instant::now() - THROTTLE_DURATION; // Initialiser à un moment antérieur suffisant
+
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -373,32 +431,65 @@ fn main() -> Result<(), String> {
                 Event::KeyDown {
                     keycode: Some(Keycode::Up),
                     ..
-                } => add_car(&mut cars, 'S'),
+                } => {
+                    if cars.iter().filter(|car| car.at_intersection).count() < MAX_CARS_IN_INTERSECTION {
+                        add_car(&mut cars, 'S');
+                    }
+                }
                 Event::KeyDown {
                     keycode: Some(Keycode::Down),
                     ..
-                } => add_car(&mut cars, 'N'),
+                } => {
+                    if cars.iter().filter(|car| car.at_intersection).count() < MAX_CARS_IN_INTERSECTION {
+                        add_car(&mut cars, 'N');
+                    }
+                }
                 Event::KeyDown {
                     keycode: Some(Keycode::Left),
                     ..
-                } => add_car(&mut cars, 'W'),
+                } => {
+                    if cars.iter().filter(|car| car.at_intersection).count() < MAX_CARS_IN_INTERSECTION {
+                        add_car(&mut cars, 'W');
+                    }
+                }
                 Event::KeyDown {
                     keycode: Some(Keycode::Right),
                     ..
-                } => add_car(&mut cars, 'E'),
+                } => {
+                    if cars.iter().filter(|car| car.at_intersection).count() < MAX_CARS_IN_INTERSECTION {
+                        add_car(&mut cars, 'E');
+                    }
+                }
                 Event::KeyDown {
                     keycode: Some(Keycode::R),
                     ..
                 } => {
-                    let direction = generate_random_direction();
-                    add_car(&mut cars, direction);
+                    if Instant::now().duration_since(last_add_time) >= THROTTLE_DURATION {
+                        if cars.iter().filter(|car| car.at_intersection).count() < MAX_CARS_IN_INTERSECTION {
+                            let direction = generate_random_direction();
+                            add_car(&mut cars, direction);
+                            last_add_time = Instant::now(); // Mettre à jour le dernier moment où une voiture a été ajoutée
+                        }
+                    }
                 }
                 _ => {}
             }
+        
         }
 
         let cars_snapshot = cars.clone();
         for car in cars.iter_mut() {
+            for other_car in &cars_snapshot {
+                if car.at_intersection && other_car.at_intersection && car.will_collide(other_car, 1) {
+                    if car.entry_time > other_car.entry_time {
+                        car.vx = car.vx.signum() * MIN_SPEED;
+                        car.vy = car.vy.signum() * MIN_SPEED;
+                    } else {
+                        car.vx = car.vx.signum() * MAX_SPEED;
+                        car.vy = car.vy.signum() * MAX_SPEED;
+                    }
+                }
+            }
             car.update(&cars_snapshot);
         }
 
