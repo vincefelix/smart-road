@@ -9,14 +9,14 @@ use rand::Rng;
 use std::time::{Duration, Instant};
 
 
-const WINDOW_WIDTH: u32 = 1200;
-const WINDOW_HEIGHT: u32 = 1200;
-const LANE_WIDTH: u32 = 65;
-const INTERSECTION_SIZE: u32 = 370;
-const CAR_SIZE: u32 = 50;
-const SAFETY_DISTANCE: i32 = 100;
-const MAX_SPEED: i32 = 30;
-const MIN_SPEED: i32 = 10;
+const WINDOW_WIDTH: u32 = 800;
+const WINDOW_HEIGHT: u32 = 800;
+const LANE_WIDTH: u32 = 75;
+const INTERSECTION_SIZE: u32 = 300;
+const CAR_SIZE: u32 = 30;
+const SAFETY_DISTANCE: i32 = 50;
+const MAX_SPEED: i32 = 10;
+const MIN_SPEED: i32 = 5;
 const THROTTLE_DURATION: Duration = Duration::from_millis(800); 
 const MAX_CARS_IN_INTERSECTION: usize = 5;
 
@@ -37,10 +37,10 @@ struct Car {
 impl Car {
     fn new(direction: char, lane: u8) -> Car {
         let (x, y, vx, vy) = match direction {
-            'N' => (562 + lane as i32 * LANE_WIDTH as i32, 0, 0, 1),
-            'S' => (615 - lane as i32 * LANE_WIDTH as i32, 1200, 0, -1),
-            'E' => (0, 610 - lane as i32 * LANE_WIDTH as i32, 1, 0),
-            'W' => (1200, 560 + lane as i32 * LANE_WIDTH as i32, -1, 0),
+            'N' => (350 + lane as i32 * LANE_WIDTH as i32, 800, 0, -1),
+            'S' => (425 - lane as i32 * LANE_WIDTH as i32, 0, 0, 1),
+            'W' => (800, 430 - lane as i32 * LANE_WIDTH as i32, -1, 0),
+            'E' => (0, 330 + lane as i32 * LANE_WIDTH as i32, 1, 0),
             _ => (0, 0, 0, 0),
         };
         Car {
@@ -58,15 +58,19 @@ impl Car {
 
     fn update(&mut self, cars: &Vec<Car>) {
 
+        if !self.at_intersection && self.lane == 3  {
+            self.turn_right();
+        }
+
         if self.should_stop(cars) {
             self.vx = 0;
             self.vy = 0;
         } else {
             if self.at_intersection {
                 match self.lane {
-                    1 => self.turn_right(),
+                    1 => self.turn_left(),
                     2 => self.go_straight(),
-                    3 => self.turn_left(),
+                    //3 => self.turn_right(),
                     _ => (),
                 }
             } else {
@@ -78,27 +82,26 @@ impl Car {
         }
 
         if !self.at_intersection
-            && self.x >= (590 - INTERSECTION_SIZE as i32 / 2)
-            && self.x <= 590 + INTERSECTION_SIZE as i32 / 2
-            && self.y >= (530 - INTERSECTION_SIZE as i32 / 2)
-            && self.y <= 590 + INTERSECTION_SIZE as i32 / 2
+            && self.x >= (390 - INTERSECTION_SIZE as i32 / 2)
+            && self.x <= 390 + INTERSECTION_SIZE as i32 / 2
+            && self.y >= (350 - INTERSECTION_SIZE as i32 / 2)
+            && self.y <= 350 + INTERSECTION_SIZE as i32 / 2
         {
             let cars_in_intersection = cars.iter().filter(|car| car.at_intersection).count();
             if cars_in_intersection < MAX_CARS_IN_INTERSECTION {
                 self.at_intersection = true;
                 self.entry_time = Instant::now();
             } else {
-                // Rendre la voiture stationnaire jusqu'à ce qu'il y ait de la place dans l'intersection
                 self.vx = 0;
                 self.vy = 0;
             }
         }
 
         if self.at_intersection
-            && (self.x < 600 - INTERSECTION_SIZE as i32 / 2
-                || self.x > 600 + INTERSECTION_SIZE as i32 / 2
-                || self.y < 600 - INTERSECTION_SIZE as i32 / 2
-                || self.y > 600 + INTERSECTION_SIZE as i32 / 2)
+            && (self.x < 400 - INTERSECTION_SIZE as i32 / 2
+                || self.x > 400 + INTERSECTION_SIZE as i32 / 2
+                || self.y < 400 - INTERSECTION_SIZE as i32 / 2
+                || self.y > 400 + INTERSECTION_SIZE as i32 / 2)
         {
             self.at_intersection = false;
             self.vx = self.vx.signum() * MAX_SPEED;
@@ -212,19 +215,9 @@ impl Car {
         }
 
         match self.direction {
+        
             'N' => {
-                if self.x > 600 {
-                    self.vx = MAX_SPEED;
-                    self.vy = 0;
-                    self.direction = 'E';
-                    self.has_turned = true;
-                } else {
-                    self.vx = 0;
-                    self.vy = MAX_SPEED;
-                }
-            }
-            'S' => {
-                if self.x < 600 {
+                if self.y<360 && self.y>320 {
                     self.vx = -MAX_SPEED;
                     self.vy = 0;
                     self.direction = 'W';
@@ -234,30 +227,38 @@ impl Car {
                     self.vy = -MAX_SPEED;
                 }
             }
-            'E' => {
-                if self.y < 455 {
-                    //println!("testE {}", self.y);
-                    self.vx = 0;
-                    self.vy = -MAX_SPEED;
-                    self.direction = 'S';
+            'S' => {
+                if self.y>420 {
+                    self.vx = MAX_SPEED;
+                    self.vy = 0;
+                    self.direction = 'E';
                     self.has_turned = true;
                 } else {
+                    self.vx = 0;
+                    self.vy = MAX_SPEED;
+                }
+            }
+            'E' => {
+                if self.x > 420 && self.x<460 {
+                    self.vx = 0;
+                    self.vy = -MAX_SPEED;
+                    self.direction = 'N';
+                    self.has_turned = true;
+                }else {
                     self.vx = MAX_SPEED;
                     self.vy = 0;
                 }
             }
             'W' => {
-                //println!("testW {}", self.y);
-                if self.y > 200 {
+                if self.x > 320 && self.x<360 {
                     self.vx = 0;
                     self.vy = MAX_SPEED;
-                    self.direction = 'N';
+                    self.direction = 'S';
                     self.has_turned = true;
-                    // self.y = 800;
                 }
                 else {
-                    self.vx = MAX_SPEED;
-                    self.vy = MAX_SPEED;
+                    self.vx = -MAX_SPEED;
+                    self.vy = 0;
                 }
             }
             _ => (),
@@ -265,28 +266,15 @@ impl Car {
     }
 
     fn turn_right(&mut self) {
+        
         if self.has_turned {
             return;
         }
 
-        let turn_radius: i32 = 50;
-        let turn_center_x: i32 = 600;
-        let turn_center_y: i32 = 600;
-
         match self.direction {
             'N' => {
-                if self.y >= turn_center_y - turn_radius + 72 {
-                    self.vx = -MAX_SPEED;
-                    self.vy = 0;
-                    self.direction = 'W';
-                    self.has_turned = true;
-                } else {
-                    self.vx = 0;
-                    self.vy = MAX_SPEED;
-                }
-            }
-            'S' => {
-                if self.y <= turn_center_y + turn_radius - 72 {
+
+                    if self.y >= 500 && self.y <= 570 {
                     self.vx = MAX_SPEED;
                     self.vy = 0;
                     self.direction = 'E';
@@ -296,11 +284,22 @@ impl Car {
                     self.vy = -MAX_SPEED;
                 }
             }
-            'E' => {
-                if self.x >= turn_center_x - turn_radius + 72 {
+            'S' => {
+                if self.y >= 208 && self.y<700{
+                    self.vx = -MAX_SPEED;
+                    self.vy = 0;
+                    self.direction = 'W';
+                    self.has_turned = true;
+                } else {
                     self.vx = 0;
                     self.vy = MAX_SPEED;
-                    self.direction = 'N';
+                }
+            }
+            'E' => {
+                if self.x >= 202 {
+                    self.vx = 0;
+                    self.vy = MAX_SPEED;
+                    self.direction = 'S';
                     self.has_turned = true;
                 } else {
                     self.vx = MAX_SPEED;
@@ -308,10 +307,10 @@ impl Car {
                 }
             }
             'W' => {
-                if self.x <= (turn_center_x) + turn_radius - 72 {
+                if self.x <= 570 {
                     self.vx = 0;
                     self.vy = -MAX_SPEED;
-                    self.direction = 'S';
+                    self.direction = 'N';
                     self.has_turned = true;
                 } else {
                     self.vx = -MAX_SPEED;
@@ -324,10 +323,10 @@ impl Car {
 
     fn go_straight(&mut self) {
         match self.direction {
-            'N' => self.vy = MAX_SPEED,
-            'S' => self.vy = -MAX_SPEED,
-            'E' => self.vx = MAX_SPEED,
+            'S' => self.vy =MAX_SPEED,
+            'N' => self.vy = -MAX_SPEED,
             'W' => self.vx = -MAX_SPEED,
+            'E' => self.vx = MAX_SPEED,
             _ => (),
         }
     }
@@ -343,8 +342,8 @@ impl Car {
             1 => (
                 left_texture,
                 match self.direction {
-                    'N' => 90.0,
-                    'S' => 270.0,
+                    'N' => 270.0,
+                    'S' => 90.0,
                     'E' => 0.0,
                     'W' => 180.0,
                     _ => 0.0,
@@ -353,8 +352,8 @@ impl Car {
             2 => (
                 straight_texture,
                 match self.direction {
-                    'N' => 90.0,
-                    'S' => 270.0,
+                    'N' => 270.0,
+                    'S' => 90.0,
                     'E' => 0.0,
                     'W' => 180.0,
                     _ => 0.0,
@@ -363,8 +362,8 @@ impl Car {
             3 => (
                 right_texture,
                 match self.direction {
-                    'N' => 90.0,
-                    'S' => 270.0,
+                    'N' => 270.0,
+                    'S' => 90.0,
                     'E' => 0.0,
                     'W' => 180.0,
                     _ => 0.0,
@@ -449,7 +448,7 @@ fn main() -> Result<(), String> {
 
     let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
     let texture_creator = canvas.texture_creator();
-    let background_texture = texture_creator.load_texture("assets/board.jpg")?;
+    let background_texture = texture_creator.load_texture("assets/board1.png")?;
     let left_car_texture = texture_creator.load_texture("assets/car_left.png")?;
     let right_car_texture = texture_creator.load_texture("assets/car_right.png")?;
     let straight_car_texture = texture_creator.load_texture("assets/car_straight.png")?;
@@ -472,7 +471,7 @@ fn main() -> Result<(), String> {
                     ..
                 } => {
                     if cars.iter().filter(|car| car.at_intersection).count() < MAX_CARS_IN_INTERSECTION {
-                        add_car(&mut cars, 'S');
+                        add_car(&mut cars, 'N');
                     }
                 }
                 Event::KeyDown {
@@ -480,15 +479,7 @@ fn main() -> Result<(), String> {
                     ..
                 } => {
                     if cars.iter().filter(|car| car.at_intersection).count() < MAX_CARS_IN_INTERSECTION {
-                        add_car(&mut cars, 'N');
-                    }
-                }
-                Event::KeyDown {
-                    keycode: Some(Keycode::Left),
-                    ..
-                } => {
-                    if cars.iter().filter(|car| car.at_intersection).count() < MAX_CARS_IN_INTERSECTION {
-                        add_car(&mut cars, 'W');
+                        add_car(&mut cars, 'S');
                     }
                 }
                 Event::KeyDown {
@@ -497,6 +488,14 @@ fn main() -> Result<(), String> {
                 } => {
                     if cars.iter().filter(|car| car.at_intersection).count() < MAX_CARS_IN_INTERSECTION {
                         add_car(&mut cars, 'E');
+                    }
+                }
+                Event::KeyDown {
+                    keycode: Some(Keycode::Left),
+                    ..
+                } => {
+                    if cars.iter().filter(|car| car.at_intersection).count() < MAX_CARS_IN_INTERSECTION {
+                        add_car(&mut cars, 'W');
                     }
                 }
                 Event::KeyDown {
