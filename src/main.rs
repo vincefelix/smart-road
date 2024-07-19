@@ -14,10 +14,10 @@ const LANE_WIDTH: u32 = 75;
 const INTERSECTION_SIZE: u32 = 340;
 const CAR_SIZE: u32 = 30;
 const SAFETY_DISTANCE: i32 = 100;
-const MAX_SPEED: i32 = 10;
-const MIN_SPEED: i32 = 2;
+const MAX_SPEED: i32 = 5;
+const MIN_SPEED: i32 = 1;
 const THROTTLE_DURATION: Duration = Duration::from_millis(800);
-const MAX_CARS_IN_INTERSECTION: usize = 3;
+const MAX_CARS_IN_INTERSECTION: usize = 4;
 
 #[derive(Debug, Clone, Copy)]
 struct Car {
@@ -64,7 +64,7 @@ impl Car {
         if !self.at_intersection && self.lane == 3 {
             self.turn_right();
         }
-
+    
         if self.should_stop(cars) {
             self.vx = 0;
             self.vy = 0;
@@ -79,11 +79,8 @@ impl Car {
             } else {
                 self.adjust_speed(cars);
             }
-
-            self.x += self.vx;
-            self.y += self.vy;
         }
-
+    
         if !self.at_intersection
             && self.x >= (390 - INTERSECTION_SIZE as i32 / 2)
             && self.x <= 390 + INTERSECTION_SIZE as i32 / 2
@@ -100,7 +97,7 @@ impl Car {
                 self.has_stopped = true;
             }
         }
-
+    
         if self.at_intersection
             && (self.x < 400 - INTERSECTION_SIZE as i32 / 2
                 || self.x > 400 + INTERSECTION_SIZE as i32 / 2
@@ -111,44 +108,52 @@ impl Car {
             self.vx = self.original_vx;
             self.vy = self.original_vy;
         }
-
         self.check_and_resume_if_stopped(cars);
+    
+        self.x += self.vx;
+        self.y += self.vy;
     }
-
+    
     fn will_collide(&self, other: &Car, steps: i32) -> bool {
         let self_rect = Rect::new(self.x, self.y, CAR_SIZE as u32, CAR_SIZE as u32);
         let other_rect = Rect::new(other.x, other.y, CAR_SIZE as u32, CAR_SIZE as u32);
-
+    
+        // Vérification des collisions à la position actuelle
         if self_rect.has_intersection(other_rect) {
             return true;
         }
-
+    
+        // Vérification des collisions pour chaque étape de mouvement
         for step in 1..=steps {
             let next_x_self = self.x + step * self.vx;
             let next_y_self = self.y + step * self.vy;
             let next_x_other = other.x + step * other.vx;
             let next_y_other = other.y + step * other.vy;
-
-            let self_rect = Rect::new(next_x_self, next_y_self, CAR_SIZE as u32, CAR_SIZE as u32);
-
-            if self_rect.has_intersection(other_rect) {
+    
+            let self_rect_next = Rect::new(next_x_self, next_y_self, CAR_SIZE as u32, CAR_SIZE as u32);
+            let other_rect_next = Rect::new(next_x_other, next_y_other, CAR_SIZE as u32, CAR_SIZE as u32);
+    
+            if self_rect_next.has_intersection(other_rect_next) {
                 return true;
             }
-
-            let other_rect = Rect::new(next_x_other, next_y_other, CAR_SIZE as u32, CAR_SIZE as u32);
-            if self_rect.has_intersection(other_rect) {
-                return true;
-            }
+    
+            // // Vérification des collisions sur les côtés
+            // if self_rect_next.left() < other_rect_next.right() &&
+            //    self_rect_next.right() > other_rect_next.left() &&
+            //    self_rect_next.top() < other_rect_next.bottom() &&
+            //    self_rect_next.bottom() > other_rect_next.top() {
+            //     return true;
+            // }
         }
         false
     }
-
+    
     fn adjust_speed(&mut self, cars: &Vec<Car>) {
         let mut should_slow_down = false;
 
         for car in cars.iter() {
             if car as *const Car != self as *const Car {
-                if self.will_collide(car, 3) {
+                if self.will_collide(car, 8) {
                     if self.entry_time > car.entry_time {
                         should_slow_down = true;
                         break;
@@ -186,11 +191,12 @@ impl Car {
                     _ => SAFETY_DISTANCE,
                 };
 
-                if 2*distance < SAFETY_DISTANCE
+                if distance <= SAFETY_DISTANCE
                     && ((self.direction == 'N' && self.y < car.y)
                         || (self.direction == 'S' && self.y > car.y)
                         || (self.direction == 'E' && self.x < car.x)
                         || (self.direction == 'W' && self.x > car.x))
+                        && !self.has_turned
                 {
                     return true;
                 }
@@ -356,7 +362,7 @@ impl Car {
 
         let mut imminent_collision = false;
         for car in cars.iter() {
-            if car as *const Car != self as *const Car && self.will_collide(car, 2) {
+            if car as *const Car != self as *const Car && self.will_collide(car, 8) {
                 imminent_collision = true;
                 break;
             }
@@ -491,7 +497,7 @@ fn resume_stopped_cars(cars: &mut Vec<Car>) {
         let mut imminent_collision = false;
         for (j, other_car) in cars.iter().enumerate() {
             if i != j {
-                let will_collide = cars[i].will_collide(other_car, 3);
+                let will_collide = cars[i].will_collide(other_car, 10);
                 if will_collide {
                     imminent_collision = true;
                     break;
@@ -573,7 +579,7 @@ fn main() -> Result<(), String> {
             for other_car in &cars_snapshot {
                 if car.at_intersection
                     && other_car.at_intersection
-                    && car.will_collide(other_car, 3)
+                    && car.will_collide(other_car, 8)
                 {
                     if car.entry_time > other_car.entry_time {
                         car.vx = car.vx.signum() * MIN_SPEED;
