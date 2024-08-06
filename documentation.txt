@@ -1,0 +1,84 @@
+Le projet "smart-Road" est une simulation de trafic routier développée en Rust qui utilise la bibliothèque Macroquad pour le rendu graphique et la gestion des entrées utilisateur. Il modélise le comportement des véhicules et leur interaction aux intersections. Voici une explication détaillée des différents composants du projet basée sur les fichiers fournis :
+
+Structure Générale
+Le projet est organisé en plusieurs modules et dossiers pour séparer les responsabilités :
+
+assets/ : Contient les ressources graphiques comme les textures de voitures et les images d'arrière-plan.
+src/ :
+app/ : Gère l'initialisation de l'application, les entrées utilisateur et les statistiques.
+control.rs : Traite les entrées clavier pour générer des voitures et gérer la pause.
+init.rs : Initialise l'application, charge les textures et la police.
+statistics.rs : Met à jour et affiche les statistiques de la simulation.
+draw/ : Contient le code pour dessiner l'arrière-plan, les voitures, les chemins et les statistiques.
+traffic/ : Gère la logique du trafic, incluant les voitures, les lignes, les chemins, les courbes et les collisions.
+Cargo.toml : Fichier de configuration pour gérer les dépendances Rust.
+README.md : Documente le projet, ses fonctionnalités, comment l'installer et contribuer.
+Fonctionnalités Principales
+Simulation de Trafic :
+Génère des voitures aléatoirement suivant différents chemins avec des textures adaptées à leur direction.
+Affiche les voitures se déplaçant selon leur direction et vitesse.
+Gestion des Collisions :
+Détection et gestion des collisions aux intersections.
+Maintient une distance de sécurité entre les véhicules.
+Statistiques Dynamiques :
+Suivi du nombre de véhicules ayant traversé l'intersection.
+Calcul des vitesses maximales et minimales.
+Détection des quasi-collisions.
+Interface Graphique :
+Affiche les statistiques sur un écran dédié.
+Permet à l'utilisateur d'interagir avec la simulation.
+Détails Techniques
+path.rs
+Ce fichier définit la structure Path qui représente un chemin que peut suivre une voiture. Il inclut des fonctions pour calculer les points de départ et d'arrivée d'une voiture sur ce chemin en fonction de sa direction et de sa destination (border_point, border_end_point, straight_point). La structure Path contient les points de son chemin sous forme de Vec<Vec2> et offre des méthodes pour créer un nouveau chemin (new) et accéder à ses points (points, point).
+
+line.rs
+Gère les voitures sur une ligne de trafic donnée. Une ligne contient trois chemins possibles (tout droit, gauche, droite) et maintient une liste de voitures pour chaque chemin. Elle offre des méthodes pour créer une nouvelle ligne (new), mettre à jour les voitures (update), générer une nouvelle voiture (gen_car), et supprimer les voitures qui ont terminé leur trajet (remove_cars).
+
+statistics.rs
+Met à jour et stocke les statistiques de la simulation, comme le nombre de voitures, les vitesses maximales et minimales, le temps maximal et minimal pour traverser l'intersection, et détecte les collisions et quasi-collisions entre voitures.
+
+car.rs
+Définit la structure Car avec des informations comme l'ID, le chemin suivi (path), la position (pos), la vitesse (velocity), et la rotation. Il gère également l'état de la voiture (CarStatus) et sa mise à jour en fonction des autres voitures et du trafic global (update, update_velocity).
+
+curve.rs
+Fournit une fonction pour calculer les points d'une courbe quadratique Bezier entre deux points avec un point de contrôle, utilisée pour les virages.
+
+car.rs (dans draw/)
+Dessine les voitures sur l'écran selon leur orientation avec différentes textures.
+
+init.rs
+Initialise l'application, charge les textures et la police, et gère la boucle principale de jeu dans run, où elle met à jour l'état du trafic, dessine l'interface et gère les entrées utilisateur.
+
+state.rs
+Gère l'état global du trafic, incluant toutes les lignes de trafic et les statistiques. Permet de générer des voitures aléatoirement ou dans une direction spécifique.
+
+control.rs
+Gère les entrées clavier pour générer des voitures ou mettre en pause la simulation.
+
+path_collisions.rs
+Fournit des méthodes pour détecter les chemins qui pourraient causer des collisions avec le chemin actuel d'une voiture.
+
+main.rs
+Point d'entrée du programme qui initialise et lance la simulation.
+
+path.rs (dans draw/)
+Dessine les chemins sur l'écran avec différentes couleurs selon leur direction.
+
+background.rs et background_statistics.rs
+Dessinent l'arrière-plan de la simulation et de l'écran des statistiques.
+
+statistics.rs (dans draw/)
+Affiche les statistiques sur l'écran des statistiques.
+
+Fonctionnement Général
+Lorsqu'une voiture est générée, elle suit un chemin défini par Path, qui peut inclure des lignes droites et des courbes. Les voitures accélèrent ou ralentissent en fonction du trafic devant elles pour éviter les collisions. Les statistiques sont mises à jour et affichées, et l'utilisateur peut interagir avec la simulation via le clavier.
+
+Exemple de Fonctionnement : Gestion des Voitures
+Lorsqu'une voiture est créée, elle suit un chemin défini par Path. Si une autre voiture est trop proche, celle-ci ralentit pour maintenir une distance de sécurité. La vitesse est ajustée en fonction de la proximité d'autres voitures et du statut de virage. Les voitures sont dessinées selon leur orientation, et leurs positions sont mises à jour dans chaque frame jusqu'à ce qu'elles atteignent la fin de leur chemin.
+
+Points Clés
+Collision : Gérées dans path_collisions.rs où les chemins intersectants sont identifiés pour détecter les risques de collision.
+Statistiques : Mises à jour dans statistics.rs et affichées par draw/statistics.rs.
+Interface Utilisateur : Gérée dans control.rs pour générer des voitures ou mettre en pause la simulation.
+Conclusion
+Le projet simule un environnement de trafic urbain simple avec des voitures suivant des chemins prédéfinis, gère les collisions, et fournit des statistiques sur le trafic. L'utilisateur peut interagir avec la simulation pour observer son comportement sous différentes conditions.
