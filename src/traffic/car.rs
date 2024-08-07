@@ -138,11 +138,11 @@ impl Car {
         if let Some(prev_car) = prev_car {
             let distance = (prev_car.pos - self.pos).length() - CAR_LENGTH;
 
-            if distance < CAR_SAFE_DISTANCE {
+            if distance < CAR_SAFE_DISTANCE * 2.0{
                 return 0.0;
             }
 
-            if distance < CAR_SAFE_DISTANCE * 2.0 {
+            if distance < CAR_SAFE_DISTANCE * 3.0 {
                 return (velocity * (1.0 - CAR_DECELERATION))
                     .min(MIN_SPEED);
             }

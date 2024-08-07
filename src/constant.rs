@@ -3,8 +3,8 @@ use macroquad::window::Conf;
 pub const WINDOW_SIZE: i32 = 700;
 pub const ROAD_WIDTH: f32 = 270.0;
 
-pub const CAR_WIDTH: f32 = 70.0;
-pub const CAR_LENGTH: f32 = 60.0;
+pub const CAR_WIDTH: f32 = 50.0;
+pub const CAR_LENGTH: f32 = 50.0;
 
 pub const CAR_PADDING: f32 = (ROAD_WIDTH / 2.0 - CAR_WIDTH) / 4.0;
 pub const CAR_SAFE_DISTANCE: f32 = 100.0;
