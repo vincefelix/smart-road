@@ -32,7 +32,7 @@ pub fn handle_input(traffic_state: &mut TrafficState) {
         traffic_state.gen_car(Direction::East);
     }
 
-    if is_key_pressed(KeyCode::R) {
+    if is_key_down(KeyCode::R) {
         traffic_state.gen_car_random();
     }
 }
